@@ -1,8 +1,7 @@
-import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
+import React, { createContext, useState, useContext, ReactNode, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
 import { User } from '../types';
-import type { AuthChangeEvent, Session, User as SupabaseUser } from '@supabase/supabase-js';
-import { useLogger } from './LoggingContext';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -11,8 +10,6 @@ interface AuthContextType {
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
   signup: (email: string, pass: string, nickname: string) => Promise<void>; 
-  fetchUserProfile: (supabaseUser: SupabaseUser) => Promise<User>; 
-  updateCurrentLocalUser: (updatedUserFields: Partial<User>) => void;
   authError: string | null;
 }
 
@@ -23,10 +20,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [authError, setAuthError] = useState<string | null>(null);
-  const { addLog } = useLogger();
 
-  const createShellUser = (supabaseUser: SupabaseUser, reason: string): User => {
-    addLog({ table: 'perfiles_usuarios', operation: 'SELECT', status: 'info', summary: `Creating shell user for ${supabaseUser.id} due to: ${reason}` });
+  // Función simplificada para crear usuario
+  const createUserFromSupabase = (supabaseUser: SupabaseUser): User => {
     return {
       id: supabaseUser.id,
       email: supabaseUser.email || '',
@@ -39,183 +35,140 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   };
 
-  const fetchUserProfile = useCallback(async (supabaseUser: SupabaseUser): Promise<User> => {
-    const startTime = Date.now();
-    try {
-      // Ensure this select matches the corrected perfiles_usuarios schema in types_db.ts
-      const { data: profile, error } = await supabase
-        .from('perfiles_usuarios')
-        .select('id, email, nickname, fecha_creacion, avatar_url, guess_game_plays_today, guess_game_wins_today, guess_game_last_play_date')
-        .eq('id', supabaseUser.id)
-        .single();
-
-      if (error && error.code !== 'PGRST116') { 
-        console.error('Error fetching user profile:', error.message || JSON.stringify(error));
-        const reason = `DB error (${error.code || 'UNKNOWN_DB_ERROR'}: ${error.message || 'No message details'})`;
-        addLog({ table: 'perfiles_usuarios', operation: 'SELECT', status: 'error', summary: `Fetch profile error for ${supabaseUser.id}, creating shell.`, error: error.message || JSON.stringify(error), startTime });
-        return createShellUser(supabaseUser, reason);
-      }
-      
-      if (profile) {
-        addLog({ table: 'perfiles_usuarios', operation: 'SELECT', status: 'success', summary: `Fetched profile for ${supabaseUser.id}`, startTime });
-        return {
-          id: profile.id,
-          email: profile.email,
-          nickname: profile.nickname, 
-          createdAt: profile.fecha_creacion,
-          avatarUrl: profile.avatar_url,
-          guessGamePlaysToday: profile.guess_game_plays_today ?? 0,
-          guessGameWinsToday: profile.guess_game_wins_today ?? 0,
-          guessGameLastPlayDate: profile.guess_game_last_play_date,
-        };
-      }
-      
-      addLog({ table: 'perfiles_usuarios', operation: 'SELECT', status: 'info', summary: `No profile found for ${supabaseUser.id} (PGRST116 or new user), creating shell.`, startTime });
-      return createShellUser(supabaseUser, 'No profile row found (PGRST116 or new user)');
-    } catch (e: any) {
-      console.error('Exception fetching profile, creating shell:', e.message || JSON.stringify(e));
-      addLog({ table: 'perfiles_usuarios', operation: 'SELECT', status: 'error', summary: `Exception fetching profile for ${supabaseUser.id}, creating shell.`, error: e.message || JSON.stringify(e), startTime });
-      return createShellUser(supabaseUser, `Exception (${e.message || 'No exception message'})`);
-    }
-  }, [addLog]);
-  
-  const updateCurrentLocalUser = (updatedUserFields: Partial<User>) => {
-    setCurrentUser(prevUser => {
-      if (!prevUser) return null;
-      return { ...prevUser, ...updatedUserFields };
-    });
-  };
-
-
   useEffect(() => {
-    setLoading(true);
-    setAuthError(null);
-    let timeoutId: any = null;
+    console.log('[Auth] Iniciando AuthProvider...');
+    
+    // Función para manejar cambios de sesión
+    const handleAuthChange = (session: Session | null) => {
+      console.log('[Auth] Session change:', session ? 'LOGGED_IN' : 'LOGGED_OUT');
+      
+      setSession(session);
+      
+      if (session?.user) {
+        const user = createUserFromSupabase(session.user);
+        setCurrentUser(user);
+        setAuthError(null);
+      } else {
+        setCurrentUser(null);
+      }
+      
+      setLoading(false);
+    };
+
+    // Obtener sesión inicial
     const getInitialSession = async () => {
-      console.log('[Auth] Chequeando sesión...');
       try {
-        const { data: { session: initialSession } } = await supabase.auth.getSession();
-        setSession(initialSession);
-        if (initialSession?.user) {
-          console.log('[Auth] Sesión encontrada:', initialSession.user.email);
-          const userProfile = await fetchUserProfile(initialSession.user);
-          setCurrentUser(userProfile);
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('[Auth] Error getting session:', error);
+          setAuthError('Error al obtener sesión');
         } else {
-          console.log('[Auth] No hay usuario en sesión.');
-          setCurrentUser(null);
+          console.log('[Auth] Initial session:', session ? 'EXISTS' : 'NONE');
+          handleAuthChange(session);
         }
-      } catch (error: any) {
-        console.error('[Auth] Error en getInitialSession:', error.message || JSON.stringify(error));
-        setCurrentUser(null); 
-        setAuthError('No se pudo recuperar la sesión de usuario. Intenta recargar la página.');
+      } catch (error) {
+        console.error('[Auth] Exception getting session:', error);
+        setAuthError('Error al inicializar autenticación');
       } finally {
         setLoading(false);
-        if (timeoutId) clearTimeout(timeoutId);
       }
     };
+
     getInitialSession();
 
-    // Timeout para evitar spinner infinito
-    timeoutId = setTimeout(() => {
-      setLoading(false);
-      setAuthError('No se pudo recuperar la sesión. Intenta recargar la página o vuelve a iniciar sesión.');
-      console.error('[Auth] Timeout: sesión no recuperada tras 5 segundos.');
-    }, 5000);
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('[Auth] Volviendo a la pestaña, re-chequeando sesión...');
-        getInitialSession();
+    // Listener para cambios de autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[Auth] Auth state change:', event, session ? 'HAS_SESSION' : 'NO_SESSION');
+      
+      // Solo manejar eventos importantes
+      if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED') {
+        handleAuthChange(session);
       }
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
+    });
 
-    const { data: authListenerData } = supabase.auth.onAuthStateChange(
-      async (event: AuthChangeEvent, sessionState: Session | null) => {
-        setLoading(true);
-        setSession(sessionState); 
-        addLog({ table: 'auth', operation: 'AUTH', status: 'success', summary: `Auth event: ${event}`, error: `Session user ID: ${sessionState?.user?.id ?? 'none'}` });
-
-        if (sessionState?.user) {
-          const userProfile = await fetchUserProfile(sessionState.user);
-          setCurrentUser(userProfile);
-        } else {
-          if (event === 'SIGNED_OUT') {
-            setCurrentUser(null);
-          } else if (event === 'INITIAL_SESSION' && !sessionState) {
-            setCurrentUser(null);
-          }
-        }
-        setLoading(false);
-      }
-    );
-
+    // Cleanup
     return () => {
-      authListenerData?.subscription?.unsubscribe();
-      document.removeEventListener('visibilitychange', handleVisibility);
-      if (timeoutId) clearTimeout(timeoutId);
+      subscription.unsubscribe();
     };
-  }, [fetchUserProfile, addLog]);
+  }, []);
 
   const login = async (email: string, pass: string): Promise<void> => {
     setLoading(true);
-    const startTime = Date.now();
+    setAuthError(null);
+    
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+      const { error } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password: pass 
+      });
+      
       if (error) throw error;
-      addLog({ table: 'auth', operation: 'AUTH', status: 'success', summary: `Login attempt for ${email}`, startTime });
+      
+      console.log('[Auth] Login successful');
     } catch (error: any) {
-      console.error("Error en login:", error.message || JSON.stringify(error));
-      addLog({ table: 'auth', operation: 'AUTH', status: 'error', summary: `Login failed for ${email}`, error: error.message || JSON.stringify(error), startTime });
-      setLoading(false); 
+      console.error('[Auth] Login error:', error);
+      setAuthError(error.message || 'Error al iniciar sesión');
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   const signup = async (email: string, pass: string, nickname: string): Promise<void> => {
     setLoading(true);
-    const startTime = Date.now();
+    setAuthError(null);
+    
     try {
-      const { data: signUpData, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password: pass,
         options: {
           data: { 
-            nickname: nickname, // This nickname should be used by the handle_new_user trigger
+            nickname: nickname,
           }
         }
       });
 
       if (error) throw error;
-      if (!signUpData.user) throw new Error("Signup successful but no user data returned.");
       
-      addLog({ table: 'auth', operation: 'AUTH', status: 'success', summary: `Signup for ${email} with nickname ${nickname}`, startTime });
-    } catch (error: any)
-     {
-      console.error("Error en signup:", error.message || JSON.stringify(error));
-      addLog({ table: 'auth', operation: 'AUTH', status: 'error', summary: `Signup failed for ${email}`, error: error.message || JSON.stringify(error), startTime });
-      setLoading(false); 
+      console.log('[Auth] Signup successful');
+    } catch (error: any) {
+      console.error('[Auth] Signup error:', error);
+      setAuthError(error.message || 'Error al registrarse');
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   const logout = async (): Promise<void> => {
-    setLoading(true); 
-    const startTime = Date.now();
+    setLoading(true);
+    
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      addLog({ table: 'auth', operation: 'AUTH', status: 'success', summary: 'User signed out', startTime });
+      
+      console.log('[Auth] Logout successful');
     } catch (error: any) {
-      console.error("Error en logout:", error.message || JSON.stringify(error));
-      addLog({ table: 'auth', operation: 'AUTH', status: 'error', summary: 'Sign out failed', error: error.message || JSON.stringify(error), startTime });
-      setLoading(false); 
+      console.error('[Auth] Logout error:', error);
+      setAuthError(error.message || 'Error al cerrar sesión');
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, session, loading, login, logout, signup, fetchUserProfile, updateCurrentLocalUser, authError }}>
+    <AuthContext.Provider value={{ 
+      currentUser, 
+      session, 
+      loading, 
+      login, 
+      logout, 
+      signup,
+      authError 
+    }}>
       {children}
     </AuthContext.Provider>
   );

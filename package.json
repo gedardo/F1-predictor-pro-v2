@@ -14,6 +14,7 @@
     "@firebase/firestore": "^4.7.16",
     "@google/genai": "^1.0.1",
     "@supabase/supabase-js": "^2.45.0",
+    "dotenv": "^17.2.0",
     "f1-api-node": "^2.1.1",
     "firebase": "^11.8.1",
     "lucide-react": "^0.511.0",
@@ -23,7 +24,7 @@
     "react-select": "^5.10.1"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
+    "@types/node": "^22.16.3",
     "supabase": "^2.26.9",
     "typescript": "~5.7.2",
     "vite": "^6.2.0"

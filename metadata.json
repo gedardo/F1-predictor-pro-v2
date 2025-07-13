@@ -1,0 +1,6 @@
+{
+  "name": "F1 Predictor Pro",
+  "description": "Una aplicación web para predicciones de Fórmula 1, donde los usuarios pueden predecir resultados de carreras, crear su equipo F1 y competir en ligas. Incluye calendario, clasificaciones y noticias de F1.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}

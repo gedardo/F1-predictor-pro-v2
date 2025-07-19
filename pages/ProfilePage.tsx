@@ -7,7 +7,7 @@ import { AppRoute, UserScore } from '../types';
 import { UserCircle, LogOut, Trash2, AlertTriangle, ListOrdered, Zap, Trophy, Gamepad2, Edit, Save, CheckCircle, XCircle } from 'lucide-react'; 
 import LoadingSpinner from '../components/LoadingSpinner';
 import Modal from '../components/Modal'; 
-import { supabase } from '../supabaseClient'; // For nickname check
+import { supabase } from '../lib/supabaseClient'; // For nickname check
 import { useLogger } from '../contexts/LoggingContext';
 
 const ProfilePage: React.FC = () => {

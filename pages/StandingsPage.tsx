@@ -11,8 +11,11 @@ const StandingsPage: React.FC = () => {
   }
   
   const fullDriverStandings = driverStandings.map(ds => {
+    // Buscar el piloto en la base de datos usando el driverId mapeado
     const driver = drivers.find(d => d.id === ds.driverId) || getDriverById(ds.driverId);
+    // Usar el teamId del standing si está disponible, o el del piloto como respaldo
     const teamId = (ds as any).teamId || driver?.teamId;
+    // Buscar el equipo en la base de datos usando el teamId mapeado
     const team = teams.find(t => t.id === teamId) || getTeamById(teamId);
     return {
       ...ds,
@@ -25,6 +28,7 @@ const StandingsPage: React.FC = () => {
   });
 
   const fullConstructorStandings = constructorStandings.map(cs => {
+    // Buscar el equipo en la base de datos usando el teamId mapeado
     const team = teams.find(t => t.id === cs.teamId) || getTeamById(cs.teamId);
     return {
       ...cs,

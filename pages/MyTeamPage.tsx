@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useData } from '../contexts/DataContext';
-import { UserF1Team, F1Driver, F1Team, AppRoute } from '../types';
+import { UserF1Team, AppRoute } from '../types';
 import DriverSelectItem from '../components/DriverSelectItem';
 import TeamSelectItem from '../components/TeamSelectItem';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -13,7 +13,7 @@ import { Link } from 'react-router-dom';
 const MyTeamPage: React.FC = () => {
   const { 
     drivers, teams, userF1Team, updateUserF1Team, 
-    getDriverById, getTeamById, loadingData, loadingUserGameData 
+    getTeamById, loadingData, loadingUserGameData 
   } = useData();
   
   const [selectedDrivers, setSelectedDrivers] = useState<(string | null)[]>(DEFAULT_USER_F1_TEAM.drivers);
@@ -136,7 +136,7 @@ const MyTeamPage: React.FC = () => {
               <DriverSelectItem
                 key={driver.id}
                 driver={driver}
-                team={getTeamById(driver.teamId)}
+                team={getTeamById(driver.teamId || '')}
                 isSelected={selectedDrivers.includes(driver.id)}
                 onSelect={handleDriverSelect}
                 disabled={selectedDrivers.filter(d => d !== null).length >= MAX_DRIVERS_TEAM && !selectedDrivers.includes(driver.id)}

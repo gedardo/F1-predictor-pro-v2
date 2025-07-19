@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, ReactNode, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import { 
   F1Team, F1Driver, F1Race, Prediction, UserF1Team, 
   DriverStanding, ConstructorStanding, NewsArticle, RaceSession,
@@ -119,20 +119,24 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const fetchStandingsFromApi = useCallback(async () => {
     setLoadingData(true);
     try {
+      // Importar las funciones de mapeo de IDs
+      const { getDbDriverId, getDbTeamId } = await import('../utils/idMapping');
+      
       // Pilotos
       const driverData = await f1Api.getDriverStandings(2025);
       setDriverStandings(driverData.map((d: any) => {
-        // Extraer driverId de la sigla final del string 'driver', por ejemplo: ' Oscar PiastriPIA' => 'pia'
+        // Usar la función de mapeo para obtener el driverId correcto
         let driverId = '';
         if (d.driver && typeof d.driver === 'string') {
-          const match = d.driver.match(/[A-Z]{3}$/);
-          driverId = match ? match[0].toLowerCase() : d.driver.replace(/\s/g, '').toLowerCase();
+          driverId = getDbDriverId(d.driver);
         }
-        // teamId: usar el nombre del equipo en minúsculas y sin espacios
+        
+        // Usar la función de mapeo para obtener el teamId correcto
         let teamId = '';
         if (d.team && typeof d.team === 'string') {
-          teamId = d.team.replace(/\s/g, '').toLowerCase();
+          teamId = getDbTeamId(d.team);
         }
+        
         return {
           driverId,
           position: d.position,
@@ -144,13 +148,14 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Escuderías
       const constructorData = await f1Api.getConstructorStandings(2025);
       setConstructorStandings(constructorData.map((c: any) => {
-        // teamId: usar el nombre del equipo en minúsculas y sin espacios
+        // Usar la función de mapeo para obtener el teamId correcto
         let teamId = '';
         if (c.team && typeof c.team === 'string') {
-          teamId = c.team.replace(/\s/g, '').toLowerCase();
+          teamId = getDbTeamId(c.team);
         } else if (c.constructorId) {
-          teamId = c.constructorId;
+          teamId = getDbTeamId(c.constructorId);
         }
+        
         return {
           teamId,
           position: c.position,
@@ -159,6 +164,9 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }));
     } catch (error: any) {
       console.error('Error al obtener standings desde la API externa:', error);
+      // En caso de error, usar los datos de ejemplo
+      setDriverStandings(MOCK_DRIVER_STANDINGS);
+      setConstructorStandings(MOCK_CONSTRUCTOR_STANDINGS);
     } finally {
       setLoadingData(false);
     }

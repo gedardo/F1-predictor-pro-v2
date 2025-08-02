@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  f1-predictor-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    # Volúmenes para desarrollo (comentar en producción)
+    # volumes:
+    #   - ./dist:/usr/share/nginx/html
+    #   - ./nginx.conf:/etc/nginx/conf.d/default.conf
